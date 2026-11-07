@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>夜カフェ ふくろう亭｜ホーさんとおしゃべり</title>
+<meta name="description" content="夜だけ開く小さなカフェ。フクロウのマスター「ホーさん」（AI）が、あなたのお話を聞きます。">
+<meta property="og:title" content="夜カフェ ふくろう亭｜ホーさんとおしゃべり">
+<meta property="og:description" content="フクロウのマスター「ホーさん」（AI）とおしゃべりできるページです。">
+<meta property="og:image" content="https://miyowesta.github.io/fukurou-tei/images/owl.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --night: #1d2340;
+    --night2: #2a3157;
+    --lamp: #f4c66b;
+    --cream: #fbf3e4;
+    --ink: #3b3226;
+    --muted: #8c93b8;
+    --me: #f4c66b;
+    --err: #e8857a;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+    color: var(--cream);
+    background:
+      radial-gradient(circle at 15% 8%, rgba(255,255,255,.7) 0 1px, transparent 2px),
+      radial-gradient(circle at 72% 14%, rgba(255,255,255,.6) 0 1px, transparent 2px),
+      radial-gradient(circle at 88% 4%, rgba(255,255,255,.5) 0 1px, transparent 2px),
+      radial-gradient(circle at 40% 3%, rgba(255,255,255,.5) 0 1px, transparent 2px),
+      radial-gradient(ellipse at 50% 0%, #3a3f6e 0%, var(--night) 60%);
+    background-attachment: fixed;
+    display: flex; justify-content: center;
+  }
+  .app {
+    width: 100%; max-width: 560px; height: 100dvh;
+    display: flex; flex-direction: column;
+  }
+
+  /* 看板 */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(244,198,107,.25);
+  }
+  .avatar {
+    width: 48px; height: 48px; border-radius: 50%; flex: none;
+    object-fit: cover; background: #efe9dc;
+    box-shadow: 0 0 0 3px rgba(244,198,107,.5), 0 0 18px rgba(244,198,107,.35);
+  }
+  .shop { flex: 1; min-width: 0; }
+  .shop h1 { margin: 0; font-size: 18px; color: var(--lamp); letter-spacing: .05em; }
+  .shop p { margin: 2px 0 0; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .icon-btn {
+    border: 1px solid rgba(244,198,107,.4); background: transparent; color: var(--lamp);
+    font: inherit; font-size: 12px; padding: 6px 10px; border-radius: 999px; cursor: pointer;
+  }
+  .icon-btn:hover { background: rgba(244,198,107,.12); }
+
+  /* 会話 */
+  #log {
+    flex: 1; overflow-y: auto; padding: 18px 14px 8px;
+    display: flex; flex-direction: column; gap: 14px;
+    scroll-behavior: smooth;
+  }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row.me { justify-content: flex-end; }
+  .row .mini { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex: none; background: #efe9dc; }
+  .bubble {
+    max-width: 80%; padding: 10px 14px; border-radius: 18px;
+    line-height: 1.75; font-size: 15px; white-space: pre-wrap; word-break: break-word;
+  }
+  .row.ai .bubble { background: var(--cream); color: var(--ink); border-bottom-left-radius: 6px; }
+  .row.me .bubble { background: var(--me); color: #3a2a0c; border-bottom-right-radius: 6px; }
+  .row.err .bubble { background: transparent; border: 1px dashed var(--err); color: var(--err); font-size: 13px; }
+  .retry {
+    display: inline-block; margin-top: 6px; font: inherit; font-size: 13px; cursor: pointer;
+    border: none; border-radius: 999px; padding: 4px 12px; background: var(--err); color: #fff;
+  }
+  .typing span {
+    display: inline-block; width: 7px; height: 7px; margin: 0 2px; border-radius: 50%;
+    background: #b9ab92; animation: blink 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: .2s; }
+  .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+  .note {
+    align-self: center; text-align: center; font-size: 12px; color: var(--muted);
+    padding: 4px 12px; border-radius: 999px; background: rgba(255,255,255,.05);
+  }
+
+  /* 話題のヒント */
+  #chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px 10px; }
+  #chips button {
+    font: inherit; font-size: 13px; cursor: pointer; color: var(--cream);
+    background: var(--night2); border: 1px solid rgba(244,198,107,.35);
+    padding: 7px 12px; border-radius: 999px;
+  }
+  #chips button:hover { border-color: var(--lamp); }
+
+  /* 入力 */
+  form {
+    display: flex; gap: 8px; align-items: flex-end;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(244,198,107,.25);
+    background: rgba(20,24,46,.7);
+  }
+  .field { flex: 1; position: relative; }
+  textarea {
+    width: 100%; resize: none; font: inherit; font-size: 16px; line-height: 1.5;
+    padding: 10px 12px 18px; border-radius: 16px; border: 1px solid rgba(244,198,107,.35);
+    background: var(--night2); color: var(--cream); max-height: 140px;
+  }
+  textarea:focus { outline: none; border-color: var(--lamp); }
+  textarea::placeholder { color: var(--muted); }
+  .count { position: absolute; right: 12px; bottom: 6px; font-size: 11px; color: var(--muted); }
+  .count.over { color: var(--err); }
+  #send {
+    flex: none; width: 48px; height: 48px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--lamp); color: #3a2a0c; font-size: 20px; font-weight: 700;
+  }
+  #send:disabled { opacity: .4; cursor: default; }
+
+  .foot { display: flex; justify-content: space-between; align-items: center; padding: 0 16px 8px; font-size: 11px; color: var(--muted); }
+  .foot button { font: inherit; font-size: 11px; color: var(--muted); background: none; border: none; text-decoration: underline; cursor: pointer; padding: 0; }
+
+  /* しくみメモ */
+  #how {
+    margin: 0 14px 10px; padding: 10px 12px; border-radius: 12px; font-size: 12px; line-height: 1.7;
+    background: rgba(255,255,255,.06); color: #cfd3ea;
+  }
+  #how[hidden] { display: none; }
+  #how b { color: var(--lamp); }
+  #chips[hidden], form[hidden] { display: none; }
+
+  .closed { align-self: center; text-align: center; }
+  .closed button {
+    margin-top: 8px; font: inherit; font-size: 14px; cursor: pointer;
+    background: var(--lamp); color: #3a2a0c; border: none; border-radius: 999px; padding: 8px 18px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <img class="avatar" src="images/owl.png" alt="ホーさん">
+    <div class="shop">
+      <h1>夜カフェ ふくろう亭</h1>
+      <p>マスター：ホーさん（AI）</p>
+    </div>
+    <button class="icon-btn" id="reset" type="button">はじめから</button>
+  </header>
+
+  <div id="log" aria-live="polite"></div>
+
+  <div id="how" hidden></div>
+  <div id="chips"></div>
+
+  <form id="form">
+    <div class="field">
+      <textarea id="input" rows="1" placeholder="ホーさんに話しかける…" aria-label="メッセージ"></textarea>
+      <span class="count" id="count">0/300</span>
+    </div>
+    <button id="send" type="submit" aria-label="送る" disabled>↑</button>
+  </form>
+  <div class="foot">
+    <span id="left"></span>
+    <button type="button" id="howBtn">しくみを見る</button>
+  </div>
+</div>
+
+<script>
+// ========== 設定 ==========
+const API_URL = "https://animal-shindan-api.miyowesta.workers.dev/chat";
+const MAX_TURNS = 20;    // 1回の来店で話せる回数（中継サーバーと同じにする）
+const MAX_CHARS = 300;   // 1回に送れる文字数（中継サーバーと同じにする）
+const SAVE_KEY = "fukurou-tei-v1";
+// 公開ページ以外（確認用にPCで開いたときなど）は、AIにつながず仮のお返事を出す
+const DEMO = location.origin !== "https://miyowesta.github.io" || new URLSearchParams(location.search).has("demo");
+
+const GREETING = "いらっしゃいませ。夜カフェ「ふくろう亭」へようこそ。\nマスターのホーさんです。今夜は、どんな一日でしたか？ よかったら、お話を聞かせてくださいね。";
+const CHIPS = ["今日あったことを聞いてほしい", "おすすめの飲み物は？", "なんだか眠れなくて", "ホーさんのことを教えて"];
+const CLOSING = "ホウ…もうこんな時間ですね。今夜はそろそろ閉店です。\nたくさんお話ししてくれて、ありがとうございました。またいつでも来てくださいね。";
+
+// ========== 会話の記録 ==========
+// messages … AIに送る会話（お客さん→ホーさん→…の順）。あいさつと閉店のことばは入れない
+let messages = [];
+let busy = false;
+let failed = false;
+
+const $ = id => document.getElementById(id);
+const log = $("log"), input = $("input"), send = $("send"), form = $("form");
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+    if (saved && Array.isArray(saved.messages)) messages = saved.messages;
+  } catch {}
+  // 最後がお客さんの発言のまま（返事を待つ途中で閉じた）なら、それは取り消す
+  if (messages.length && messages[messages.length - 1].role === "user") messages.pop();
+}
+function save() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ messages })); } catch {}
+}
+function turns() { return messages.filter(m => m.role === "user").length; }
+
+// ========== 表示 ==========
+function bubble(role, text) {
+  const row = document.createElement("div");
+  row.className = "row " + role;
+  if (role === "ai") {
+    const img = document.createElement("img");
+    img.className = "mini"; img.src = "images/owl.png"; img.alt = "";
+    row.appendChild(img);
+  }
+  const b = document.createElement("div");
+  b.className = "bubble";
+  b.textContent = text;
+  row.appendChild(b);
+  log.appendChild(row);
+  return row;
+}
+function note(text) {
+  const n = document.createElement("div");
+  n.className = "note"; n.textContent = text;
+  log.appendChild(n);
+}
+function scrollDown() { log.scrollTop = log.scrollHeight; }
+
+function renderAll() {
+  log.innerHTML = "";
+  if (DEMO) note("確認用モード：AIにはつながず、仮のお返事を出します");
+  bubble("ai", GREETING);
+  for (const m of messages) bubble(m.role === "user" ? "me" : "ai", m.content);
+  if (turns() >= MAX_TURNS) showClosed();
+  update();
+  scrollDown();
+}
+
+function update() {
+  const len = input.value.length;
+  const count = $("count");
+  count.textContent = `${len}/${MAX_CHARS}`;
+  count.classList.toggle("over", len > MAX_CHARS);
+  const closed = turns() >= MAX_TURNS;
+  send.disabled = busy || closed || !input.value.trim() || len > MAX_CHARS;
+  $("chips").hidden = messages.length > 0 || busy;
+  form.hidden = closed;
+  $("left").textContent = closed ? "" : `今夜あと ${MAX_TURNS - turns()} 回お話しできます`;
+  // しくみメモ：AIに毎回なにを送っているか
+  const chars = messages.reduce((n, m) => n + m.content.length, 0);
+  $("how").innerHTML =
+    `AIは前の会話を覚えていません。そこでこのページが、<b>毎回それまでの会話ぜんぶ</b>をAIに送っています。<br>` +
+    `次に送る会話：<b>${messages.length + 1}件</b>（今までの ${messages.length}件 ＋ あなたの新しいひとこと）／今までの文字数 約${chars}字`;
+}
+
+function showClosed() {
+  bubble("ai", CLOSING);
+  const box = document.createElement("div");
+  box.className = "closed note";
+  box.innerHTML = "今夜のおしゃべりはここまでです<br>";
+  const btn = document.createElement("button");
+  btn.textContent = "もう一度来店する";
+  btn.onclick = reset;
+  box.appendChild(btn);
+  log.appendChild(box);
+}
+
+// ========== 送る ==========
+async function ask() {
+  busy = true; failed = false; update();
+  const typing = bubble("ai", "");
+  typing.querySelector(".bubble").innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+  scrollDown();
+
+  try {
+    const message = DEMO ? await demoReply() : await callApi();
+    typing.remove();
+    messages.push({ role: "assistant", content: message });
+    save();
+    bubble("ai", message);
+    if (turns() >= MAX_TURNS) showClosed();
+  } catch (err) {
+    typing.remove();
+    failed = true;
+    const row = bubble("err", err.message || "お返事が届きませんでした。");
+    const btn = document.createElement("button");
+    btn.className = "retry"; btn.textContent = "もう一度送る";
+    btn.onclick = () => { row.remove(); ask(); };
+    row.querySelector(".bubble").appendChild(document.createElement("br"));
+    row.querySelector(".bubble").appendChild(btn);
+  }
+  busy = false; update(); scrollDown();
+  if (!failed) input.focus();
+}
+
+async function callApi() {
+  let res;
+  try {
+    res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+    });
+  } catch {
+    throw new Error("ホーさんに声が届きませんでした。電波のよいところで、もう一度お試しください。");
+  }
+  const data = await res.json().catch(() => ({}));
+  if (res.ok && data.message) return data.message;
+  if (res.status === 429) throw new Error(data.code === "rate_limited"
+    ? "少し急ぎすぎたみたいです。1分ほど待ってから、もう一度どうぞ。"
+    : "お店が混み合っています。少し待ってから、もう一度どうぞ。");
+  throw new Error("ホーさんのお返事を受け取れませんでした。時間をおいて、もう一度お試しください。");
+}
+
+function submit(text) {
+  text = text.trim();
+  if (!text || busy || text.length > MAX_CHARS || turns() >= MAX_TURNS) return;
+  // 前回の送信に失敗していたら、その発言は取り消してから送り直す
+  if (failed && messages.length && messages[messages.length - 1].role === "user") {
+    messages.pop();
+    log.querySelectorAll(".row.err").forEach(e => e.remove());
+    const mine = log.querySelectorAll(".row.me");
+    if (mine.length) mine[mine.length - 1].remove();
+  }
+  messages.push({ role: "user", content: text });
+  save();
+  bubble("me", text);
+  input.value = ""; resize();
+  ask();
+}
+
+function reset() {
+  if (messages.length && turns() < MAX_TURNS && !confirm("今までの会話を消して、はじめから話しますか？")) return;
+  messages = []; failed = false; save(); renderAll();
+}
+
+// ========== 入力欄 ==========
+function resize() {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 140) + "px";
+  update();
+}
+input.addEventListener("input", resize);
+input.addEventListener("keydown", e => {
+  // パソコン：Enterで送る（Shift+Enterで改行）。変換中のEnterは送らない
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !matchMedia("(pointer: coarse)").matches) {
+    e.preventDefault();
+    submit(input.value);
+  }
+});
+form.addEventListener("submit", e => { e.preventDefault(); submit(input.value); });
+$("reset").onclick = reset;
+$("howBtn").onclick = () => {
+  const how = $("how");
+  how.hidden = !how.hidden;
+  $("howBtn").textContent = how.hidden ? "しくみを見る" : "しくみを閉じる";
+};
+for (const c of CHIPS) {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = c;
+  b.onclick = () => submit(c);
+  $("chips").appendChild(b);
+}
+
+// ========== 確認用の仮のお返事 ==========
+const DEMO_REPLIES = [
+  "ホウ、聞かせてくれてありがとうございます。それは大変でしたね。今夜はゆっくりしていってください。",
+  "なるほど、そういうことだったんですね。あなたのそのがんばり、ちゃんと伝わってきましたよ。",
+  "それなら今夜の一杯は、はちみつ入りのホットミルクはいかがでしょう。体がふわっとあたたまりますよ。",
+  "ふふ、わたしも森で同じようなことがありました。夜の森は、意外とにぎやかなんですよ。",
+];
+function demoReply() {
+  return new Promise(r => setTimeout(() => r("（確認用）" + DEMO_REPLIES[(turns() - 1) % DEMO_REPLIES.length]), 900));
+}
+
+load();
+renderAll();
+</script>
+</body>
+</html>
