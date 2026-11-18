@@ -79,7 +79,7 @@
   .row.err .bubble { background: transparent; border: 1px dashed var(--err); color: var(--err); font-size: 13px; }
   .retry {
     display: inline-block; margin-top: 6px; font: inherit; font-size: 13px; cursor: pointer;
-    border: none; border-radius: 999px; padding: 4px 12px; background: var(--err); color: #fff;
+    border: none; border-radius: 999px; padding: 4px 12px; background: #b84237; color: #fff;
   }
   .typing span {
     display: inline-block; width: 7px; height: 7px; margin: 0 2px; border-radius: 50%;
@@ -113,8 +113,9 @@
   .field { flex: 1; position: relative; }
   textarea {
     width: 100%; resize: none; font: inherit; font-size: 16px; line-height: 1.5;
-    padding: 10px 12px 18px; border-radius: 16px; border: 1px solid rgba(244,198,107,.35);
+    padding: 10px 56px 18px 12px; border-radius: 16px; border: 1px solid rgba(244,198,107,.35);
     background: var(--night2); color: var(--cream); max-height: 140px;
+    overflow-y: hidden;   /* いちばん高くなるまではスクロールバーを出さない */
   }
   textarea:focus { outline: none; border-color: var(--lamp); }
   textarea::placeholder { color: var(--muted); }
@@ -126,8 +127,8 @@
   }
   #send:disabled { opacity: .4; cursor: default; }
 
-  .foot { display: flex; justify-content: space-between; align-items: center; padding: 0 16px 8px; font-size: 11px; color: var(--muted); }
-  .foot button { font: inherit; font-size: 11px; color: var(--muted); background: none; border: none; text-decoration: underline; cursor: pointer; padding: 0; }
+  .foot { display: flex; justify-content: space-between; align-items: center; padding: 0 16px 4px; font-size: 11px; color: var(--muted); }
+  .foot button { font: inherit; font-size: 12px; color: var(--muted); background: none; border: none; text-decoration: underline; cursor: pointer; padding: 6px 8px; margin-right: -8px; }
 
   /* しくみメモ */
   #how {
@@ -137,6 +138,11 @@
   #how[hidden] { display: none; }
   #how b { color: var(--lamp); }
   #chips[hidden], form[hidden] { display: none; }
+
+  /* Tabキーで動かしたとき、いまどこにいるか分かるように */
+  button:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--lamp); outline-offset: 2px;
+  }
 
   .closed { align-self: center; text-align: center; }
   .closed button {
@@ -170,7 +176,7 @@
   </form>
   <div class="foot">
     <span id="left"></span>
-    <button type="button" id="howBtn">しくみを見る</button>
+    <button type="button" id="howBtn" aria-expanded="false" aria-controls="how">しくみを見る</button>
   </div>
 </div>
 
@@ -251,7 +257,7 @@ function update() {
   send.disabled = busy || closed || !input.value.trim() || len > MAX_CHARS;
   $("chips").hidden = messages.length > 0 || busy;
   form.hidden = closed;
-  $("left").textContent = closed ? "" : `今夜あと ${MAX_TURNS - turns()} 回お話しできます`;
+  $("left").textContent = closed ? "" : `この会話であと ${MAX_TURNS - turns()} 回お話しできます`;
   // しくみメモ：AIに毎回なにを送っているか
   const chars = messages.reduce((n, m) => n + m.content.length, 0);
   $("how").innerHTML =
@@ -275,7 +281,7 @@ function showClosed() {
 async function ask() {
   busy = true; failed = false; update();
   const typing = bubble("ai", "");
-  typing.querySelector(".bubble").innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+  typing.querySelector(".bubble").innerHTML = '<span class="typing" role="status" aria-label="ホーさんが考え中です"><span></span><span></span><span></span></span>';
   scrollDown();
 
   try {
@@ -337,21 +343,35 @@ function submit(text) {
 
 function reset() {
   if (messages.length && turns() < MAX_TURNS && !confirm("今までの会話を消して、はじめから話しますか？")) return;
-  messages = []; failed = false; save(); renderAll();
+  messages = []; failed = false; save();
+  input.value = ""; resize();   // 書きかけの文字も消す
+  renderAll();
 }
 
 // ========== 入力欄 ==========
 function resize() {
+  const MAX_H = 140;
   input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight, 140) + "px";
+  // scrollHeight には枠線が入らないので、その分を足す（足りないとスクロールバーが出る）
+  const border = input.offsetHeight - input.clientHeight;
+  const h = input.scrollHeight + border;
+  input.style.height = Math.min(h, MAX_H) + "px";
+  input.style.overflowY = h > MAX_H ? "auto" : "hidden";
   update();
 }
 input.addEventListener("input", resize);
 input.addEventListener("keydown", e => {
   // パソコン：Enterで送る（Shift+Enterで改行）。変換中のEnterは送らない
-  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !matchMedia("(pointer: coarse)").matches) {
-    e.preventDefault();
-    submit(input.value);
+  // （スマホの画面キーボードでは、Enterはふつうの改行のまま）
+  if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+  if (matchMedia("(pointer: coarse)").matches) return;
+  e.preventDefault();   // 改行が入らないよう、送る前に止める
+  if (!send.disabled) submit(input.value);
+});
+// 念のため：送ったあとに改行だけが残っていたら消す
+input.addEventListener("keyup", e => {
+  if (e.key === "Enter" && !e.shiftKey && input.value.trim() === "" && input.value !== "") {
+    input.value = ""; resize();
   }
 });
 form.addEventListener("submit", e => { e.preventDefault(); submit(input.value); });
@@ -360,6 +380,8 @@ $("howBtn").onclick = () => {
   const how = $("how");
   how.hidden = !how.hidden;
   $("howBtn").textContent = how.hidden ? "しくみを見る" : "しくみを閉じる";
+  $("howBtn").setAttribute("aria-expanded", String(!how.hidden));
+  scrollDown();   // パネルが開いた分、最新のお返事が隠れないように
 };
 for (const c of CHIPS) {
   const b = document.createElement("button");
